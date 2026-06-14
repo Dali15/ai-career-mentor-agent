@@ -38,6 +38,12 @@ SKILL_VECTORS = {
     "system design": {"system_design": 1.0, "backend": 0.8, "cloud": 0.6},
     "mobile dev": {"mobile": 1.0, "frontend": 0.6, "ui_ux": 0.5},
     "flutter": {"mobile": 1.0, "frontend": 0.7, "ui_ux": 0.4},
+    "linux": {"devops": 0.9, "cloud": 0.8, "backend": 0.5, "networking": 0.6, "security": 0.5},
+    "cybersecurity": {"security": 1.0, "networking": 0.7, "devops": 0.5, "cloud": 0.5},
+    "security": {"security": 1.0, "networking": 0.6, "devops": 0.4, "cloud": 0.4},
+    "java": {"backend": 0.9, "system_design": 0.6},
+    "c++": {"backend": 0.8, "system_design": 0.7},
+    "c#": {"backend": 0.9, "cloud": 0.5},
 }
 
 CAREER_VECTORS = {

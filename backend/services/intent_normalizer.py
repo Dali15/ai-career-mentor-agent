@@ -219,6 +219,12 @@ CONFIDENCE_WEIGHTS: Dict[str, float] = {
     "apis":             _HIGH,
     "system design":    _HIGH,
     "data analysis":    _HIGH,
+    "linux":            _HIGH,
+    "cybersecurity":    _HIGH,
+    "security":         _HIGH,
+    "java":             _HIGH,
+    "c++":              _HIGH,
+    "c#":               _HIGH,
     # expanded / inferred
     "web apps":         _MEDIUM,
     "web dev":          _MEDIUM,

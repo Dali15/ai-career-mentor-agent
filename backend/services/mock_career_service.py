@@ -96,7 +96,17 @@ class MockCareerService(CareerMentorService):
             comparison_careers = [str(c).strip() for c in selected_careers if str(c).strip()]
 
         user_vector, match_count = self._build_user_vector(skills_text, interests_text)
-        career_scores = self._score_careers(user_vector, match_count, comparison_careers)
+        
+        # 1. Score ALL possible careers to find the absolute best match
+        all_possible_careers = list(self.CAREER_VECTORS.keys())
+        all_scores = self._score_careers(user_vector, match_count, all_possible_careers)
+        
+        # 2. Identify the absolute top career across the entire system
+        absolute_top_career = all_scores[0]["career"] if all_scores else "Full-Stack Developer"
+        
+        # 3. Filter down to the requested comparison list + the absolute winner
+        careers_to_keep = set(comparison_careers + [absolute_top_career])
+        career_scores = [score for score in all_scores if score["career"] in careers_to_keep]
 
         # Generate decoupled reasoning
         engine_input = {

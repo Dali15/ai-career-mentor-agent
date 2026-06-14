@@ -1,13 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useRef, useState } from 'react'
 
 import AppHeader from './AppHeader'
-import LoadingState from './LoadingState'
+import AIThinkingLoader from './AIThinkingLoader'
 import CareerMatchScore from './CareerMatchScore'
 import CareerComparisonTable from './CareerComparisonTable'
+import DecisionTrace from './DecisionTrace'
 import ProfileForm from './ProfileForm'
 import ReasoningTimeline from './ReasoningTimeline'
 import ResultCard from './ResultCard'
-import ResultsSkeleton from './ResultsSkeleton'
 import RoadmapCard from './RoadmapCard'
 
 const initialFormData = {
@@ -17,54 +17,63 @@ const initialFormData = {
   selectedCareers: ['DevOps Engineer', 'Data Analyst', 'Backend Developer', 'Cloud Engineer'],
 }
 
-const thinkingSteps = [
-  'Analyzing profile',
-  'Matching careers',
-  'Calculating scores',
-  'Building roadmap',
-]
 
 export default function Homepage() {
   const [formData, setFormData] = useState(initialFormData)
   const [careerPlan, setCareerPlan] = useState(null)
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [activeThinkingStep, setActiveThinkingStep] = useState(0)
+  const [thinkingDone, setThinkingDone] = useState(false)
+  const pendingPlan = useRef(null)  // hold result until animation finishes
 
-  const recommendedPaths = Array.isArray(careerPlan?.recommended_paths) ? careerPlan.recommended_paths : []
+  const aiSource = careerPlan?.ai_source || 'mock'
+  const careerScores = Array.isArray(careerPlan?.career_scores) ? careerPlan.career_scores : []
+
+  // Sort by score descending
+  const sortedScores = [...careerScores].sort((a, b) => (b.score || 0) - (a.score || 0))
+  const topCareerData = sortedScores[0] || {}
+
+  const recommendedPaths = sortedScores.map(c => c.career).filter(Boolean)
+  const comparison = sortedScores
+  const topCareer = careerPlan?.top_career || topCareerData.career || ''
+  const topCareerScore = topCareerData.score || 0
+  const strengths = Array.isArray(topCareerData.top_positive_factors) ? topCareerData.top_positive_factors : []
+  const missingSkills = Array.isArray(topCareerData.missing_critical_skills) ? topCareerData.missing_critical_skills : []
+
+  // Legacy/other fields
   const learningResources = Array.isArray(careerPlan?.learning_resources) ? careerPlan.learning_resources : []
   const certifications = Array.isArray(careerPlan?.certifications) ? careerPlan.certifications : []
-  const reasoningTrace = Array.isArray(careerPlan?.reasoning_trace) ? careerPlan.reasoning_trace : []
+  const roadmap = careerPlan?.roadmap || {}
+  // reasoning is now an array of 4 structured ExplanationEngine steps
   const reasoningSteps = Array.isArray(careerPlan?.reasoning) ? careerPlan.reasoning : []
-  const comparison = Array.isArray(careerPlan?.career_comparison) ? careerPlan.career_comparison : []
-  const aiSource = careerPlan?.ai_source || 'mock'
+  const finalExplanation = careerPlan?.final_explanation || ''
+  const pipelineSteps = Array.isArray(careerPlan?.pipeline_steps) ? careerPlan.pipeline_steps : null
+  const decisionTrace = careerPlan?.decision_trace || null
 
-  useEffect(() => {
-    if (!isLoading) {
-      setActiveThinkingStep(0)
-      return undefined
+  // When API returns, store in ref — actual reveal waits for animation to finish
+  function handleThinkingComplete() {
+    if (pendingPlan.current) {
+      setCareerPlan(pendingPlan.current)
+      pendingPlan.current = null
     }
-
-    const timer = window.setInterval(() => {
-      setActiveThinkingStep((currentStep) => Math.min(currentStep + 1, thinkingSteps.length - 1))
-    }, 850)
-
-    return () => window.clearInterval(timer)
-  }, [isLoading])
+    setThinkingDone(true)
+    setIsLoading(false)
+  }
 
   async function handleSubmit(event) {
     event.preventDefault()
     setIsLoading(true)
+    setThinkingDone(false)
     setError('')
     setCareerPlan(null)
+    pendingPlan.current = null
 
     try {
       const response = await fetch('/api/career', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          include_pipeline: true,
           user_data: {
             education: formData.education,
             skills: formData.skills,
@@ -80,11 +89,12 @@ export default function Homepage() {
         throw new Error(data?.error || 'Failed to generate a career plan.')
       }
 
-      setCareerPlan(data)
+      // Store result — don't show yet, wait for thinking animation to complete
+      pendingPlan.current = data
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Something went wrong.')
-    } finally {
       setIsLoading(false)
+      setThinkingDone(true)
     }
   }
 
@@ -110,7 +120,7 @@ export default function Homepage() {
     })
   }
 
-  const hasResult = Boolean(careerPlan)
+  const hasResult = Boolean(careerPlan && Array.isArray(careerPlan.career_scores) && careerPlan.career_scores.length > 0)
 
   return (
     <main className="relative min-h-screen overflow-hidden text-slate-100">
@@ -136,10 +146,10 @@ export default function Homepage() {
 
           <div className="space-y-6">
             {isLoading ? (
-              <div className="space-y-6">
-                <LoadingState steps={thinkingSteps} activeStep={activeThinkingStep} />
-                <ResultsSkeleton />
-              </div>
+              <AIThinkingLoader
+                steps={pipelineSteps}
+                onComplete={handleThinkingComplete}
+              />
             ) : null}
 
             {error ? (
@@ -179,16 +189,16 @@ export default function Homepage() {
               <div className="grid gap-6 xl:grid-cols-3">
                 <div className="xl:col-span-3">
                   <CareerMatchScore
-                    score={careerPlan?.career_match_score ?? 0}
-                    explanation={careerPlan?.career_match_explanation ?? ''}
-                    confidenceScore={careerPlan?.confidence_score ?? 0}
-                    jobReadyTime={careerPlan?.job_ready_time ?? ''}
-                    marketDemand={careerPlan?.market_demand ?? ''}
+                    score={topCareerScore}
+                    explanation={topCareerData?.reasoning_summary || ''}
+                    confidenceScore={topCareerScore}
+                    jobReadyTime={''}
+                    marketDemand={''}
                     className="shadow-[0_24px_80px_rgba(15,23,42,0.24)]"
                   />
                 </div>
 
-                <CareerComparisonTable comparison={comparison} bestCareer={careerPlan?.career_path ?? ''} className="xl:col-span-3" />
+                <CareerComparisonTable comparison={comparison} bestCareer={topCareer} className="xl:col-span-3" />
 
                 <ResultCard
                   eyebrow="Signal"
@@ -215,9 +225,9 @@ export default function Homepage() {
                 </ResultCard>
 
                 <ResultCard eyebrow="Signal" title="Strengths" accent="from-emerald-400 to-teal-500">
-                  {careerPlan.strengths?.length ? (
+                  {strengths.length ? (
                     <ul className="space-y-3">
-                      {careerPlan.strengths?.map((strength) => (
+                      {strengths.map((strength) => (
                         <li key={strength} className="flex items-start gap-3 rounded-[1rem] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-slate-200">
                           <span className="mt-1 h-2.5 w-2.5 rounded-full bg-emerald-300" />
                           <span>{strength}</span>
@@ -230,9 +240,9 @@ export default function Homepage() {
                 </ResultCard>
 
                 <ResultCard eyebrow="Gaps" title="Missing skills" accent="from-amber-400 to-orange-500">
-                  {careerPlan.missing_skills?.length ? (
+                  {missingSkills.length ? (
                     <ul className="space-y-3">
-                      {careerPlan.missing_skills?.map((skill) => (
+                      {missingSkills.map((skill) => (
                         <li key={skill} className="flex items-start gap-3 rounded-[1rem] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-slate-200">
                           <span className="mt-1 h-2.5 w-2.5 rounded-full bg-amber-300" />
                           <span>{skill}</span>
@@ -281,27 +291,36 @@ export default function Homepage() {
                   )}
                 </ResultCard>
 
-                <RoadmapCard roadmap={careerPlan.roadmap} className="xl:col-span-3" />
+                <RoadmapCard roadmap={roadmap} className="xl:col-span-3" />
+
+                {/* ── AI Transparency: Decision Trace ───────────────── */}
+                {decisionTrace?.summary ? (
+                  <div className="xl:col-span-3">
+                    <DecisionTrace trace={decisionTrace} topCareer={topCareer} />
+                  </div>
+                ) : null}
 
                 <ResultCard
                   eyebrow="Agent memory"
                   title="Reasoning trace"
-                  description="The internal decision trail is shown so the recommendation stays transparent."
+                  description="The internal decision trail — showing each inference step the engine made."
                   accent="from-fuchsia-400 to-violet-500"
                   className="xl:col-span-3"
                 >
-                  <ReasoningTimeline steps={reasoningTrace.length ? reasoningTrace : reasoningSteps} />
+                  <ReasoningTimeline steps={reasoningSteps} />
                 </ResultCard>
 
-                <ResultCard
-                  eyebrow="Outcome"
-                  title="Final advice"
-                  description="A concise next step to turn the recommendation into measurable progress."
-                  accent="from-sky-400 to-indigo-500"
-                  className="xl:col-span-3"
-                >
-                  <p className="text-sm leading-7 text-slate-200">{careerPlan?.final_advice ?? ''}</p>
-                </ResultCard>
+                {finalExplanation ? (
+                  <ResultCard
+                    eyebrow="Outcome"
+                    title="Final explanation"
+                    description="A concise summary of why this career path was selected."
+                    accent="from-sky-400 to-indigo-500"
+                    className="xl:col-span-3"
+                  >
+                    <p className="text-sm leading-7 text-slate-200">{finalExplanation}</p>
+                  </ResultCard>
+                ) : null}
               </div>
             ) : null}
           </div>

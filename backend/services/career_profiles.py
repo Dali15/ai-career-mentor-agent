@@ -18,8 +18,8 @@ DIMENSION_WEIGHTS = {
 }
 
 SKILL_VECTORS = {
-    "sql": {"data": 0.8, "database": 0.9, "backend": 0.4},
-    "python": {"data": 0.7, "backend": 0.6, "ai": 0.6, "machine_learning": 0.5},
+    "sql": {"data": 0.8, "database": 0.9, "backend": 0.6, "devops": 0.2, "cloud": 0.2},
+    "python": {"backend": 0.9, "data": 0.8, "ai": 0.6, "machine_learning": 0.5},
     "react": {"frontend": 0.9, "mobile": 0.3, "backend": 0.2, "ui_ux": 0.4},
     "web apps": {"frontend": 0.6, "backend": 0.6},
     "node": {"backend": 0.9, "frontend": 0.3},

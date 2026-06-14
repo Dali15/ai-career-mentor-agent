@@ -45,41 +45,33 @@ class GroqCareerService(MockCareerService):
                                 "structured_analysis": profile_analysis,
                                 "required_output": {
                                     "ai_source": "groq",
-                                    "career_match_score": "integer",
-                                    "confidence_score": "integer",
-                                    "career_match_explanation": "string",
-                                    "analysis_summary": "string",
-                                    "career_path": "string",
-                                    "recommended_paths": ["string"],
-                                    "career_comparison": [
+                                    "top_career": "string",
+                                    "career_scores": [
                                         {
                                             "career": "string",
                                             "score": "integer",
-                                            "reason": "string",
-                                            "strong_hits": ["string"],
-                                            "partial_hits": ["string"],
+                                            "top_positive_factors": ["string"],
+                                            "supporting_factors": ["string"],
+                                            "missing_critical_skills": ["string"],
+                                            "reasoning_summary": "string"
                                         }
                                     ],
                                     "reasoning": ["string"],
                                     "strengths": ["string"],
-                                    "missing_skills": ["string"],
+                                    "gaps": ["string"],
                                     "roadmap": {
                                         "month_1": ["string"],
                                         "month_2": ["string"],
                                         "month_3": ["string"],
                                     },
-                                    "reasoning_trace": ["string"],
-                                    "market_demand": "string",
-                                    "job_ready_time": "string",
+                                    "certifications": ["string"],
                                     "learning_resources": [
                                         {
                                             "title": "string",
                                             "type": "string",
                                             "url": "string",
                                         }
-                                    ],
-                                    "certifications": ["string"],
-                                    "final_advice": "string",
+                                    ]
                                 },
                             }
                         ),
@@ -185,27 +177,18 @@ class GroqCareerService(MockCareerService):
         normalized = dict(fallback)
         normalized.update(
             {
-                "career_match_score": self._safe_int(value.get("career_match_score"), fallback["career_match_score"]),
-                "confidence_score": self._safe_int(value.get("confidence_score"), fallback["confidence_score"]),
-                "career_match_explanation": str(value.get("career_match_explanation", fallback["career_match_explanation"])).strip() or fallback["career_match_explanation"],
-                "analysis_summary": str(value.get("analysis_summary", fallback.get("analysis_summary", ""))).strip() or fallback.get("analysis_summary", ""),
-                "career_path": str(value.get("career_path", fallback["career_path"])).strip() or fallback["career_path"],
-                "recommended_paths": self._ensure_string_list(value.get("recommended_paths"), fallback.get("recommended_paths", [])),
-                "career_comparison": self._ensure_comparison_list(value.get("career_comparison"), fallback["career_comparison"]),
                 "reasoning": self._ensure_string_list(value.get("reasoning"), fallback["reasoning"]),
-                "strengths": self._ensure_string_list(value.get("strengths"), fallback["strengths"]),
-                "missing_skills": self._ensure_string_list(value.get("missing_skills"), fallback["missing_skills"]),
+                "strengths": self._ensure_string_list(value.get("strengths"), fallback.get("strengths", [])),
+                "gaps": self._ensure_string_list(value.get("gaps", value.get("missing_skills")), fallback.get("gaps", [])),
                 "roadmap": {
                     "month_1": self._ensure_string_list(roadmap.get("month_1"), fallback["roadmap"]["month_1"]),
                     "month_2": self._ensure_string_list(roadmap.get("month_2"), fallback["roadmap"]["month_2"]),
                     "month_3": self._ensure_string_list(roadmap.get("month_3"), fallback["roadmap"]["month_3"]),
                 },
-                "reasoning_trace": self._ensure_string_list(value.get("reasoning_trace"), fallback["reasoning_trace"]),
-                "market_demand": str(value.get("market_demand", fallback.get("market_demand", ""))).strip() or fallback.get("market_demand", ""),
-                "job_ready_time": str(value.get("job_ready_time", fallback.get("job_ready_time", ""))).strip() or fallback.get("job_ready_time", ""),
-                "learning_resources": self._ensure_learning_resources(value.get("learning_resources"), fallback["learning_resources"]),
                 "certifications": self._ensure_string_list(value.get("certifications"), fallback["certifications"]),
-                "final_advice": str(value.get("final_advice", fallback["final_advice"])).strip() or fallback["final_advice"],
+                "learning_resources": self._ensure_learning_resources(value.get("learning_resources"), fallback["learning_resources"]),
+                "final_explanation": str(value.get("final_explanation", fallback.get("final_explanation", ""))).strip() or fallback.get("final_explanation", ""),
+                "career_specific_explanations": value.get("career_specific_explanations", fallback.get("career_specific_explanations", {}))
             }
         )
 

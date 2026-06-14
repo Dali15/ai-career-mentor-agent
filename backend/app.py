@@ -31,6 +31,18 @@ def career_route():
         }
 
     response = generate_career_plan(user_data)
+
+    # Optional: include deterministic pipeline steps for UI "thinking" simulation
+    include_pipeline = str(payload.get("include_pipeline", "false")).lower() in ("true", "1", "yes")
+    if include_pipeline:
+        response["pipeline_steps"] = [
+            "Analyzing profile",
+            "Extracting skill vectors",
+            "Computing vector space",
+            "Scoring careers",
+            "Generating explanation",
+        ]
+
     print("🔥 AI RESPONSE TYPE:", type(response))
     return jsonify(response)
 

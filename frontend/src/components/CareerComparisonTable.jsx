@@ -3,7 +3,8 @@ import ResultCard from './ResultCard'
 function ComparisonRow({ item, isBest }) {
   const safeScore = Math.max(0, Math.min(100, Number(item?.score) || 0))
   const careerName = item?.career || 'Career'
-  const reason = item?.reason || 'No comparison reason available.'
+  const strengths = item?.top_positive_factors?.length ? item.top_positive_factors.join(', ') : 'None'
+  const gaps = item?.missing_critical_skills?.length ? item.missing_critical_skills.join(', ') : 'None'
 
   return (
     <tr className={isBest ? 'bg-cyan-400/10' : ''}>
@@ -32,7 +33,10 @@ function ComparisonRow({ item, isBest }) {
         </div>
       </td>
 
-      <td className="px-4 py-4 align-top text-sm leading-6 text-slate-300">{reason}</td>
+      <td className="px-4 py-4 align-top text-sm leading-6 text-slate-300">
+        <p className="mb-1"><span className="font-semibold text-emerald-400">Strengths:</span> {strengths}</p>
+        <p><span className="font-semibold text-amber-400">Gaps:</span> {gaps}</p>
+      </td>
     </tr>
   )
 }
@@ -68,8 +72,8 @@ export default function CareerComparisonTable({ comparison = [], bestCareer = ''
             <thead className="border-b border-white/10 bg-white/[0.04]">
               <tr>
                 <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Career</th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Score</th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Why</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400 w-32">Score</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Key Factors</th>
               </tr>
             </thead>
             <tbody>

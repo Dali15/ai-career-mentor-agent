@@ -5,6 +5,9 @@ import re
 from typing import Any
 
 from .career_mentor_service import CareerMentorService
+from .explanation_engine import ExplanationEngine
+from .intent_normalizer import normalize_user_profile
+from .final_response_builder import FinalResponseBuilder
 
 class MockCareerService(CareerMentorService):
     """
@@ -31,8 +34,8 @@ class MockCareerService(CareerMentorService):
     }
 
     SKILL_VECTORS = {
-        "sql": {"data": 0.8, "database": 0.9, "backend": 0.4},
-        "python": {"data": 0.7, "backend": 0.6, "ai": 0.6, "machine_learning": 0.5},
+        "sql": {"data": 0.8, "database": 0.9, "backend": 0.6, "devops": 0.2, "cloud": 0.2},
+        "python": {"backend": 0.9, "data": 0.8, "ai": 0.6, "machine_learning": 0.5},
         "react": {"frontend": 0.9, "mobile": 0.3, "backend": 0.2, "ui_ux": 0.4},
         "web apps": {"frontend": 0.6, "backend": 0.6},
         "node": {"backend": 0.9, "frontend": 0.3},
@@ -75,9 +78,17 @@ class MockCareerService(CareerMentorService):
     }
 
     def analyze_profile(self, user_data: dict[str, Any]) -> dict[str, Any]:
-        skills_text = str(user_data.get("skills", "")).lower()
-        interests_text = str(user_data.get("interests", "")).lower()
-        
+        raw_skills    = str(user_data.get("skills", ""))
+        raw_interests = str(user_data.get("interests", ""))
+        raw_education = str(user_data.get("education", ""))
+
+        # ── Intent Normalization Layer ────────────────────────────────────────
+        # Raw input MUST NOT reach the vector builder directly.
+        # All messy/slang/multilingual input is cleaned here first.
+        normalized = normalize_user_profile(raw_education, raw_skills, raw_interests)
+        skills_text    = normalized["normalized_skills_text"]
+        interests_text = normalized["normalized_interests_text"]
+
         selected_careers = user_data.get("selected_careers")
         if not selected_careers or not isinstance(selected_careers, list):
             comparison_careers = self.DEFAULT_COMPARISON_CAREERS
@@ -87,27 +98,30 @@ class MockCareerService(CareerMentorService):
         user_vector, match_count = self._build_user_vector(skills_text, interests_text)
         career_scores = self._score_careers(user_vector, match_count, comparison_careers)
 
-        if career_scores:
-            top_career = career_scores[0]["career"]
-            reasoning = [career_scores[0]["reasoning_summary"]]
-        else:
-            top_career = "Full-Stack Developer"
-            reasoning = ["No strong vector alignments found, falling back to general path."]
-
-        # Returning strictly the required output format
-        return {
+        # Generate decoupled reasoning
+        engine_input = {
             "career_scores": career_scores,
-            "top_career": top_career,
-            "reasoning": reasoning
+            "user_vector": user_vector,
+            "top_career": career_scores[0]["career"] if career_scores else "Full-Stack Developer",
+            "skill_breakdown": {}
         }
+        explanation_output = ExplanationEngine.generate_explanation(engine_input)
+
+        # Let the FinalResponseBuilder construct the strict JSON contract
+        return FinalResponseBuilder.build(
+            user_profile=user_data,
+            normalized_profile={
+                "clean_skills": normalized["clean_skills"],
+                "detected_intents": normalized["detected_intents"],
+                "confidence_map":   normalized["confidence_map"],
+            },
+            career_scores=career_scores,
+            explanation=explanation_output
+        )
 
     def _build_response(self, user_data: dict[str, Any], profile_analysis: dict[str, Any]) -> dict[str, Any]:
-        # Return strict output as requested by the user rule
-        return {
-            "career_scores": profile_analysis.get("career_scores", []),
-            "top_career": profile_analysis.get("top_career", "Full-Stack Developer"),
-            "reasoning": profile_analysis.get("reasoning", [])
-        }
+        # analyze_profile now directly returns the strict contract built by FinalResponseBuilder
+        return profile_analysis
 
     def _build_user_vector(self, skills_text: str, interests_text: str) -> tuple[dict[str, float], int]:
         tokens = [t.strip() for t in re.split(r"[,;\n/|]+", skills_text) if t.strip()]
@@ -126,12 +140,17 @@ class MockCareerService(CareerMentorService):
             for dim in self.DIMENSIONS:
                 user_vector[dim] = min(1.0, user_vector[dim] / match_count)
 
-        # 2. Apply interest integration BEFORE scoring (Soft Multiplier)
+        # 2. Apply interest integration BEFORE scoring (Soft Multiplier capped at +5%)
+        # Only act as a weak multiplier.
+        total_interest_boost = 1.0
         for interest, boosts in self.INTEREST_BOOSTS.items():
             if interest in interests_text:
-                for dim, boost_val in boosts.items():
-                    # Apply multiplier (e.g. 1.05) instead of direct +0.2 addition
-                    user_vector[dim] = min(1.0, user_vector[dim] * (1.0 + boost_val))
+                total_interest_boost += 0.02
+        
+        total_interest_boost = min(1.05, total_interest_boost)
+        
+        for dim in self.DIMENSIONS:
+            user_vector[dim] = min(1.0, user_vector[dim] * total_interest_boost)
 
         return user_vector, match_count
 
@@ -158,7 +177,6 @@ class MockCareerService(CareerMentorService):
                 u_val = user_vector.get(dim, 0.0) * weight
                 c_val = career_vector.get(dim, 0.0) * weight
                 
-                # Apply soft cap if one dimension contributes >40% of total score
                 dim_dot = u_val * c_val
                 if total_dot > 0 and (dim_dot / total_dot) > 0.4:
                     dim_dot = total_dot * 0.4
@@ -186,20 +204,18 @@ class MockCareerService(CareerMentorService):
                 
             coverage_score = (coverage_num / coverage_den) if coverage_den > 0 else 0.0
 
-            # Adaptive Hybrid Score
-            if match_count < 3:
-                coverage_weight = 0.5
-                cosine_weight = 0.5
-            else:
-                coverage_weight = 0.3
-                cosine_weight = 0.7
+            # Career Alignment Bonus
+            career_top_dim = max(self.DIMENSIONS, key=lambda d: career_vector.get(d, 0.0))
+            alignment_bonus = user_vector.get(career_top_dim, 0.0)
 
-            hybrid_score = (cosine_weight * cosine_sim) + (coverage_weight * coverage_score)
+            # Unified Formula
+            hybrid_score = (0.55 * cosine_sim) + (0.30 * coverage_score) + (0.15 * alignment_bonus)
 
-            # Ensure top 3 non-zero by having a baseline offset
             normalized_score = int(round(hybrid_score * 100))
             if normalized_score < 5:
                 normalized_score = 5
+            elif normalized_score > 100:
+                normalized_score = 100
 
             explanation = self._generate_explanation(user_vector, career_vector, career)
 
@@ -258,3 +274,4 @@ class MockCareerService(CareerMentorService):
             "missing_critical_skills": missing_critical,
             "reasoning_summary": reasoning_summary
         }
+

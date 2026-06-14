@@ -40,25 +40,16 @@ class OpenAIService(MockCareerService):
                                 "user_data": user_data,
                                 "structured_analysis": profile_analysis,
                                 "locked_fields": {
-                                    "career_path": profile_analysis.get("career_path"),
-                                    "career_match_score": profile_analysis.get("career_match_score"),
-                                    "confidence_score": profile_analysis.get("confidence_score"),
-                                    "career_comparison": profile_analysis.get("career_comparison"),
-                                    "recommended_paths": profile_analysis.get("recommended_paths"),
-                                    "market_demand": profile_analysis.get("market_demand"),
-                                    "job_ready_time": profile_analysis.get("job_ready_time"),
+                                    "top_career": profile_analysis.get("top_career"),
+                                    "career_scores": profile_analysis.get("career_scores"),
                                 },
                                 "required_output": {
-                                    "analysis_summary": "string",
-                                    "career_match_explanation": "string",
                                     "reasoning": ["string"],
                                     "strengths": ["string"],
-                                    "missing_skills": ["string"],
+                                    "gaps": ["string"],
                                     "roadmap": {"month_1": ["string"], "month_2": ["string"], "month_3": ["string"]},
-                                    "reasoning_trace": ["string"],
-                                    "final_advice": "string",
-                                    "learning_resources": [{"title": "string", "type": "string", "url": "string"}],
                                     "certifications": ["string"],
+                                    "learning_resources": [{"title": "string", "type": "string", "url": "string"}],
                                 },
                             }
                         ),
@@ -139,17 +130,17 @@ class OpenAIService(MockCareerService):
         normalized.update(
             {
                 "reasoning": self._ensure_string_list(value.get("reasoning"), fallback["reasoning"]),
-                "strengths": self._ensure_string_list(value.get("strengths"), fallback["strengths"]),
-                "missing_skills": self._ensure_string_list(value.get("missing_skills"), fallback["missing_skills"]),
+                "strengths": self._ensure_string_list(value.get("strengths"), fallback.get("strengths", [])),
+                "gaps": self._ensure_string_list(value.get("gaps", value.get("missing_skills")), fallback.get("gaps", [])),
                 "roadmap": {
                     "month_1": self._ensure_string_list(roadmap.get("month_1"), fallback["roadmap"]["month_1"]),
                     "month_2": self._ensure_string_list(roadmap.get("month_2"), fallback["roadmap"]["month_2"]),
                     "month_3": self._ensure_string_list(roadmap.get("month_3"), fallback["roadmap"]["month_3"]),
                 },
-                "analysis_summary": str(value.get("analysis_summary", fallback.get("analysis_summary", ""))).strip() or fallback.get("analysis_summary", ""),
-                "career_match_explanation": str(value.get("career_match_explanation", fallback.get("career_match_explanation", ""))).strip() or fallback.get("career_match_explanation", ""),
-                "reasoning_trace": self._ensure_string_list(value.get("reasoning_trace"), fallback["reasoning_trace"]),
-                "final_advice": str(value.get("final_advice", fallback["final_advice"])).strip() or fallback["final_advice"],
+                "certifications": self._ensure_string_list(value.get("certifications"), fallback.get("certifications", [])),
+                "learning_resources": value.get("learning_resources", fallback.get("learning_resources", [])),
+                "final_explanation": str(value.get("final_explanation", fallback.get("final_explanation", ""))).strip() or fallback.get("final_explanation", ""),
+                "career_specific_explanations": value.get("career_specific_explanations", fallback.get("career_specific_explanations", {}))
             }
         )
 

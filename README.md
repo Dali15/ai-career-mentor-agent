@@ -437,6 +437,27 @@ Contributions welcome! Focus areas:
 
 ---
 
+## v1.2 Upgrade — Domain Intelligence Layer
+
+This release introduces the Domain Intelligence Layer (v1.2): a 18 → 24+ domain taxonomy upgrade that brings professional-grade domain classification to the normalization pipeline.
+
+- **What changed in v1.2:**
+        - Replaced simple keyword mapping with a semantic `domain_classifier` that reasons over normalized skills, detected intents, and interest signals.
+        - Cybersecurity-first priority handling: security-related inputs now map to specialized security domains (e.g., `penetration_testing`, `cybersecurity_analyst`, `security_engineering`) and will not be auto-mapped to `backend_engineering`.
+        - Full-stack detection logic: profiles with both frontend and backend signals are classified as `full_stack_engineering`.
+        - Platform engineering detection: co-occurrence of cloud (AWS/GCP/Azure) and DevOps tools (Docker/Kubernetes/CI) surfaces `platform_engineering`.
+        - Job-market aligned taxonomy: new domain labels better reflect hiring roles.
+        - Improved ranking stability for ambiguous inputs.
+
+Additions in codebase:
+
+- `backend/services/domain_classifier.py` — v1.2 domain mapping and rules
+- `backend/services/intent_normalizer.py` — now returns `domains` in its output
+
+_See `tests/test_domain_classifier.py` for deterministic classification examples._
+
+---
+
 ## 📸 UI Screenshots
 
 Below are three UI screenshots demonstrating the polished frontend. Copy the image files into `assets/screenshots/` using the filenames shown.

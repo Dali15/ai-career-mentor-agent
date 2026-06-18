@@ -1,18 +1,23 @@
 from __future__ import annotations
 
+import logging
 import math
 import re
 from typing import Any
 
 from .career_mentor_service import CareerMentorService
+from .career_profiles import CAREER_VECTORS as SHARED_CAREER_VECTORS, DIMENSIONS as SHARED_DIMENSIONS, DIMENSION_WEIGHTS as SHARED_DIMENSION_WEIGHTS, INTEREST_BOOSTS as SHARED_INTEREST_BOOSTS, SKILL_VECTORS as SHARED_SKILL_VECTORS
 from .explanation_engine import ExplanationEngine
 from .intent_normalizer import normalize_user_profile
 from .final_response_builder import FinalResponseBuilder
+
+logger = logging.getLogger(__name__)
 
 class MockCareerService(CareerMentorService):
     """
     Vector-based semantic recommendation system.
     Replaces keyword-based matching with multidimensional vector similarity.
+    Uses fixed-point arithmetic for deterministic scoring across all platforms.
     """
 
     DEFAULT_COMPARISON_CAREERS = [
@@ -20,67 +25,27 @@ class MockCareerService(CareerMentorService):
         "DevOps Engineer", "Cloud Engineer", "Mobile Developer"
     ]
     
-    # 1. Expanded Hierarchical Vector Space (Flattened for computation)
-    DIMENSIONS = [
-        "backend", "frontend", "data", "cloud", "devops", 
-        "ai", "mobile", "database", "system_design",
-        "ui_ux", "networking", "security", "testing", "machine_learning"
-    ]
+    # Scoring formula weights (tuned for balanced recommendations)
+    # - Cosine similarity (55%): Captures overall skill-to-career alignment
+    # - Coverage score (30%): Ensures user has critical skills for the role
+    # - Alignment bonus (15%): Boosts careers where user has the top required dimension
+    COSINE_WEIGHT = 0.55
+    COVERAGE_WEIGHT = 0.30
+    ALIGNMENT_WEIGHT = 0.15
     
-    DIMENSION_WEIGHTS = {
-        "backend": 1.1, "frontend": 1.0, "data": 1.1, "cloud": 1.2, "devops": 1.2,
-        "ai": 1.3, "mobile": 1.0, "database": 1.1, "system_design": 1.2,
-        "ui_ux": 1.0, "networking": 1.1, "security": 1.3, "testing": 1.0, "machine_learning": 1.3
-    }
-
-    SKILL_VECTORS = {
-        "sql": {"data": 0.8, "database": 0.9, "backend": 0.6, "devops": 0.2, "cloud": 0.2},
-        "python": {"backend": 0.9, "data": 0.8, "ai": 0.6, "machine_learning": 0.5},
-        "react": {"frontend": 0.9, "mobile": 0.3, "backend": 0.2, "ui_ux": 0.4},
-        "web apps": {"frontend": 0.6, "backend": 0.6},
-        "node": {"backend": 0.9, "frontend": 0.3},
-        "node.js": {"backend": 0.9, "frontend": 0.3},
-        "docker": {"devops": 0.9, "cloud": 0.6, "backend": 0.4, "networking": 0.2},
-        "kubernetes": {"devops": 0.9, "cloud": 0.8, "networking": 0.3},
-        "aws": {"cloud": 1.0, "devops": 0.6, "networking": 0.4, "security": 0.3},
-        "azure": {"cloud": 1.0, "devops": 0.6, "networking": 0.4, "security": 0.3},
-        "javascript": {"frontend": 0.9, "backend": 0.4},
-        "html": {"frontend": 0.8, "ui_ux": 0.6},
-        "css": {"frontend": 0.8, "ui_ux": 0.7},
-        "machine learning": {"ai": 1.0, "data": 0.7, "backend": 0.3, "machine_learning": 1.0},
-        "data analysis": {"data": 1.0, "database": 0.6},
-        "api": {"backend": 0.8, "system_design": 0.5},
-        "apis": {"backend": 0.8, "system_design": 0.5},
-        "system design": {"system_design": 1.0, "backend": 0.8, "cloud": 0.6},
-        "mobile dev": {"mobile": 1.0, "frontend": 0.6, "ui_ux": 0.5},
-        "flutter": {"mobile": 1.0, "frontend": 0.7, "ui_ux": 0.4},
-    }
-
-    CAREER_VECTORS = {
-        "Data Analyst": {"data": 1.0, "database": 0.9, "backend": 0.4, "ai": 0.5, "machine_learning": 0.3},
-        "Backend Developer": {"backend": 1.0, "database": 0.8, "system_design": 0.8, "frontend": 0.3, "testing": 0.4, "security": 0.3},
-        "DevOps Engineer": {"devops": 1.0, "cloud": 0.9, "backend": 0.5, "system_design": 0.7, "networking": 0.6, "security": 0.5},
-        "Cloud Engineer": {"cloud": 1.0, "devops": 0.7, "backend": 0.4, "system_design": 0.7, "networking": 0.8, "security": 0.6},
-        "Mobile Developer": {"mobile": 1.0, "frontend": 0.8, "backend": 0.4, "ai": 0.2, "ui_ux": 0.5},
-        "Frontend Developer": {"frontend": 1.0, "mobile": 0.5, "backend": 0.3, "ui_ux": 0.8, "testing": 0.3},
-        "Full-Stack Developer": {"frontend": 0.8, "backend": 0.8, "database": 0.6, "system_design": 0.5, "ui_ux": 0.4},
-        "Cybersecurity Analyst": {"devops": 0.6, "cloud": 0.7, "backend": 0.5, "system_design": 0.6, "security": 1.0, "networking": 0.9},
-    }
-
-    # 2. Interest Boosts (Soft multipliers)
-    INTEREST_BOOSTS = {
-        "ai": {"ai": 0.05, "data": 0.02, "cloud": 0.02, "machine_learning": 0.05},
-        "web apps": {"frontend": 0.05, "backend": 0.05},
-        "data analysis": {"data": 0.05, "database": 0.02},
-        "data": {"data": 0.05, "database": 0.02},
-        "cloud": {"cloud": 0.05, "devops": 0.02},
-        "mobile": {"mobile": 0.05, "frontend": 0.02},
-    }
+    # 1. Expanded Hierarchical Vector Space (Flattened for computation)
+    DIMENSIONS = SHARED_DIMENSIONS
+    DIMENSION_WEIGHTS = SHARED_DIMENSION_WEIGHTS
+    SKILL_VECTORS = SHARED_SKILL_VECTORS
+    CAREER_VECTORS = SHARED_CAREER_VECTORS
+    INTEREST_BOOSTS = SHARED_INTEREST_BOOSTS
 
     def analyze_profile(self, user_data: dict[str, Any]) -> dict[str, Any]:
         raw_skills    = str(user_data.get("skills", ""))
         raw_interests = str(user_data.get("interests", ""))
         raw_education = str(user_data.get("education", ""))
+
+        logger.info(f"Analyzing profile: skills_len={len(raw_skills)}, interests_len={len(raw_interests)}, education_len={len(raw_education)}")
 
         # ── Intent Normalization Layer ────────────────────────────────────────
         # Raw input MUST NOT reach the vector builder directly.
@@ -89,24 +54,26 @@ class MockCareerService(CareerMentorService):
         skills_text    = normalized["normalized_skills_text"]
         interests_text = normalized["normalized_interests_text"]
 
+        logger.debug(f"Normalized: {len(normalized['clean_skills'])} skills detected")
+
         selected_careers = user_data.get("selected_careers")
         if not selected_careers or not isinstance(selected_careers, list):
             comparison_careers = self.DEFAULT_COMPARISON_CAREERS
+            logger.debug("Using default comparison careers")
         else:
             comparison_careers = [str(c).strip() for c in selected_careers if str(c).strip()]
+            if not comparison_careers:
+                comparison_careers = self.DEFAULT_COMPARISON_CAREERS
+                logger.warning("Selected careers list was empty, using defaults")
 
-        user_vector, match_count = self._build_user_vector(skills_text, interests_text)
+        user_vector, match_count = self._build_user_vector(skills_text, interests_text, raw_education)
         
-        # 1. Score ALL possible careers to find the absolute best match
+        logger.info(f"User vector built with {match_count} skill matches across {len(self.DIMENSIONS)} dimensions")
+        
+        # Score all careers, then strictly honor the user-selected comparison list.
         all_possible_careers = list(self.CAREER_VECTORS.keys())
         all_scores = self._score_careers(user_vector, match_count, all_possible_careers)
-        
-        # 2. Identify the absolute top career across the entire system
-        absolute_top_career = all_scores[0]["career"] if all_scores else "Full-Stack Developer"
-        
-        # 3. Filter down to the requested comparison list + the absolute winner
-        careers_to_keep = set(comparison_careers + [absolute_top_career])
-        career_scores = [score for score in all_scores if score["career"] in careers_to_keep]
+        career_scores = [score for score in all_scores if score["career"] in comparison_careers]
 
         # Generate decoupled reasoning
         engine_input = {
@@ -133,8 +100,15 @@ class MockCareerService(CareerMentorService):
         # analyze_profile now directly returns the strict contract built by FinalResponseBuilder
         return profile_analysis
 
-    def _build_user_vector(self, skills_text: str, interests_text: str) -> tuple[dict[str, float], int]:
+    def _build_user_vector(self, skills_text: str, interests_text: str, education_text: str = "") -> tuple[dict[str, float], int]:
+        MAX_SKILL_TOKENS = 100  # Prevent algorithmic DoS
+        
         tokens = [t.strip() for t in re.split(r"[,;\n/|]+", skills_text) if t.strip()]
+        
+        if len(tokens) > MAX_SKILL_TOKENS:
+            logger.warning(f"Skills field has {len(tokens)} tokens, truncating to {MAX_SKILL_TOKENS}")
+            tokens = tokens[:MAX_SKILL_TOKENS]
+        
         user_vector = {dim: 0.0 for dim in self.DIMENSIONS}
         match_count = 0
 
@@ -150,82 +124,93 @@ class MockCareerService(CareerMentorService):
             for dim in self.DIMENSIONS:
                 user_vector[dim] = min(1.0, user_vector[dim] / match_count)
 
-        # 2. Apply interest integration BEFORE scoring (Soft Multiplier capped at +5%)
-        # Only act as a weak multiplier.
-        total_interest_boost = 1.0
-        for interest, boosts in self.INTEREST_BOOSTS.items():
-            if interest in interests_text:
-                total_interest_boost += 0.02
+        # 2. Education-based weak priors for IT/CS students.
+        education_lower = education_text.lower()
+        if "it student" in education_lower or "cs student" in education_lower or "computer science" in education_lower:
+            for dim, prior_val in {"backend": 0.12, "linux": 0.10, "networking": 0.08, "database": 0.10, "apis": 0.08}.items():
+                if dim in self.DIMENSIONS and user_vector[dim] < 0.35:
+                    user_vector[dim] = max(user_vector[dim], prior_val)
         
-        total_interest_boost = min(1.05, total_interest_boost)
-        
-        for dim in self.DIMENSIONS:
-            user_vector[dim] = min(1.0, user_vector[dim] * total_interest_boost)
-
         return user_vector, match_count
 
     def _score_careers(self, user_vector: dict[str, float], match_count: int, careers: list[str]) -> list[dict[str, Any]]:
+        """
+        Score all requested careers against user profile.
+        Uses fixed-point arithmetic (multiply by 1000) for deterministic scoring across platforms.
+        """
         results = []
         for career in careers:
             career_vector = self.CAREER_VECTORS.get(career)
             if not career_vector:
                 career_vector = {dim: 0.2 for dim in self.DIMENSIONS}
 
-            dot_product = 0.0
-            mag1_sq = 0.0
-            mag2_sq = 0.0
+            # ─────────────────────────────────────────────────────────────────────
+            # 1. COSINE SIMILARITY (55% weight)
+            # ─────────────────────────────────────────────────────────────────────
+            dot_product_int = 0  # Fixed-point (× 1000)
+            mag1_sq_int = 0
+            mag2_sq_int = 0
 
-            # Calculate similarity manually with cap safeguards and DIMENSION WEIGHTS
-            total_dot = sum(
-                (user_vector.get(d, 0) * self.DIMENSION_WEIGHTS.get(d, 1.0)) * 
-                (career_vector.get(d, 0) * self.DIMENSION_WEIGHTS.get(d, 1.0)) 
-                for d in self.DIMENSIONS
-            )
-            
             for dim in self.DIMENSIONS:
                 weight = self.DIMENSION_WEIGHTS.get(dim, 1.0)
-                u_val = user_vector.get(dim, 0.0) * weight
-                c_val = career_vector.get(dim, 0.0) * weight
+                u_val_int = int(user_vector.get(dim, 0.0) * 1000)
+                c_val_int = int(career_vector.get(dim, 0.0) * 1000)
+                weight_int = int(weight * 1000)
                 
-                dim_dot = u_val * c_val
-                if total_dot > 0 and (dim_dot / total_dot) > 0.4:
-                    dim_dot = total_dot * 0.4
-                    
-                dot_product += dim_dot
-                mag1_sq += u_val ** 2
-                mag2_sq += c_val ** 2
+                u_weighted = (u_val_int * weight_int) // 1000
+                c_weighted = (c_val_int * weight_int) // 1000
+                
+                dot_product_int += (u_weighted * c_weighted) // 1000
+                mag1_sq_int += (u_weighted * u_weighted) // 1000
+                mag2_sq_int += (c_weighted * c_weighted) // 1000
             
-            mag1 = math.sqrt(mag1_sq)
-            mag2 = math.sqrt(mag2_sq)
+            # Compute magnitudes
+            mag1_int = int(math.sqrt(mag1_sq_int / 1000000) * 1000) if mag1_sq_int > 0 else 0
+            mag2_int = int(math.sqrt(mag2_sq_int / 1000000) * 1000) if mag2_sq_int > 0 else 0
 
-            if mag1 == 0 or mag2 == 0:
-                cosine_sim = 0.0
+            if mag1_int == 0 or mag2_int == 0:
+                cosine_sim_int = 0
             else:
-                cosine_sim = dot_product / (mag1 * mag2)
+                denom_int = max(1, (mag1_int * mag2_int) // 1000)
+                cosine_sim_int = (dot_product_int * 1000) // denom_int
+            
+            cosine_sim_int = max(0, min(1000, cosine_sim_int))  # Clamp to [0, 1]
 
-            # Importance-aware Coverage Score
-            coverage_num = 0.0
-            coverage_den = 0.0
+            # ─────────────────────────────────────────────────────────────────────
+            # 2. COVERAGE SCORE (30% weight) - Does user have critical skills?
+            # ─────────────────────────────────────────────────────────────────────
+            coverage_num_int = 0
+            coverage_den_int = 0
             for dim in self.DIMENSIONS:
-                c_val = career_vector.get(dim, 0.0)
-                u_val = user_vector.get(dim, 0.0)
-                coverage_num += min(u_val, c_val)
-                coverage_den += c_val
+                c_val_int = int(career_vector.get(dim, 0.0) * 1000)
+                u_val_int = int(user_vector.get(dim, 0.0) * 1000)
+                coverage_num_int += min(u_val_int, c_val_int)
+                coverage_den_int += c_val_int
                 
-            coverage_score = (coverage_num / coverage_den) if coverage_den > 0 else 0.0
+            coverage_score_int = (coverage_num_int * 1000) // coverage_den_int if coverage_den_int > 0 else 0
 
-            # Career Alignment Bonus
+            # ─────────────────────────────────────────────────────────────────────
+            # 3. ALIGNMENT BONUS (15% weight) - Does user excel at this career's top dimension?
+            # ─────────────────────────────────────────────────────────────────────
             career_top_dim = max(self.DIMENSIONS, key=lambda d: career_vector.get(d, 0.0))
-            alignment_bonus = user_vector.get(career_top_dim, 0.0)
+            alignment_bonus_int = int(user_vector.get(career_top_dim, 0.0) * 1000)
 
-            # Unified Formula
-            hybrid_score = (0.55 * cosine_sim) + (0.30 * coverage_score) + (0.15 * alignment_bonus)
-
-            normalized_score = int(round(hybrid_score * 100))
-            if normalized_score < 5:
-                normalized_score = 5
-            elif normalized_score > 100:
-                normalized_score = 100
+            # ─────────────────────────────────────────────────────────────────────
+            # 4. UNIFIED FORMULA (fixed-point)
+            # hybrid = (0.55 × cosine) + (0.30 × coverage) + (0.15 × alignment)
+            # ─────────────────────────────────────────────────────────────────────
+            hybrid_int = (
+                (550 * cosine_sim_int) // 1000 +
+                (300 * coverage_score_int) // 1000 +
+                (150 * alignment_bonus_int) // 1000
+            )
+            
+            # Normalize to 0-100 scale
+            normalized_score = max(0, min(100, hybrid_int // 10))
+            
+            # Enforce minimum viability floor (0 is okay for non-matching)
+            if normalized_score < 5 and match_count > 0:
+                normalized_score = 5  # Small non-zero for at least some signal
 
             explanation = self._generate_explanation(user_vector, career_vector, career)
 
@@ -237,6 +222,8 @@ class MockCareerService(CareerMentorService):
                 "missing_critical_skills": explanation["missing_critical_skills"],
                 "reasoning_summary": explanation["reasoning_summary"]
             })
+            
+            logger.debug(f"Scored {career}: {normalized_score}/100 (cosine={cosine_sim_int/1000:.2f}, coverage={coverage_score_int/1000:.2f})")
 
         results.sort(key=lambda x: x["score"], reverse=True)
         return results

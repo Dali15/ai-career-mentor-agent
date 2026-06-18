@@ -1,10 +1,31 @@
+/**
+ * @typedef {Object} CareerScoreItem
+ * @property {string} career - Career title
+ * @property {number} score - Match score 0-100
+ * @property {string[]} top_positive_factors - Key strengths
+ * @property {string[]} missing_critical_skills - Skill gaps
+ * @property {string} reasoning_summary - Explanation of match
+ */
+
 import ResultCard from './ResultCard'
 
+/**
+ * ComparisonRow - Individual row in the career comparison table.
+ * @param {Object} props
+ * @param {CareerScoreItem} props.item - Career data to display
+ * @param {boolean} props.isBest - Whether this is the top-ranked career
+ * @returns {React.JSX.Element}
+ */
 function ComparisonRow({ item, isBest }) {
+  // Validate and normalize score to 0-100 range
   const safeScore = Math.max(0, Math.min(100, Number(item?.score) || 0))
-  const careerName = item?.career || 'Career'
-  const strengths = item?.top_positive_factors?.length ? item.top_positive_factors.join(', ') : 'None'
-  const gaps = item?.missing_critical_skills?.length ? item.missing_critical_skills.join(', ') : 'None'
+  const careerName = String(item?.career || 'Career').trim()
+  const strengths = Array.isArray(item?.top_positive_factors) && item.top_positive_factors.length > 0
+    ? item.top_positive_factors.join(', ')
+    : 'None'
+  const gaps = Array.isArray(item?.missing_critical_skills) && item.missing_critical_skills.length > 0
+    ? item.missing_critical_skills.join(', ')
+    : 'None'
 
   return (
     <tr className={isBest ? 'bg-cyan-400/10' : ''}>

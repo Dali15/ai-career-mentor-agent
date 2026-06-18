@@ -3,12 +3,44 @@ import { useRef, useState } from 'react'
 import AppHeader from './AppHeader'
 import AIThinkingLoader from './AIThinkingLoader'
 import CareerMatchScore from './CareerMatchScore'
-import CareerComparisonTable from './CareerComparisonTable'
+import ComparisonCards from './ComparisonCards'
 import DecisionTrace from './DecisionTrace'
 import ProfileForm from './ProfileForm'
 import ReasoningTimeline from './ReasoningTimeline'
 import ResultCard from './ResultCard'
 import RoadmapCard from './RoadmapCard'
+import PipelineVisualization from './PipelineVisualization'
+
+/**
+ * @typedef {Object} FormData
+ * @property {string} education - User education background
+ * @property {string} skills - Comma-separated or newline-separated skills
+ * @property {string} interests - User career interests
+ * @property {string[]} selectedCareers - List of careers to compare against
+ */
+
+/**
+ * @typedef {Object} CareerScore
+ * @property {string} career - Career title
+ * @property {number} score - Numerical score (0-100)
+ * @property {string[]} top_positive_factors - Skills/factors boosting this career
+ * @property {string[]} supporting_factors - Additional positive factors
+ * @property {string[]} missing_critical_skills - Skills gaps for this career
+ * @property {string} reasoning_summary - Explanation of the score
+ */
+
+/**
+ * @typedef {Object} CareerPlan
+ * @property {string} ai_source - "mock" | "groq" | "openai" | "azure"
+ * @property {string} top_career - Recommended career
+ * @property {CareerScore[]} career_scores - Ranked list of careers
+ * @property {Object} decision_trace - Reasoning behind recommendations
+ * @property {Object} roadmap - 3-month action plan
+ * @property {string[]} reasoning - Structured reasoning steps
+ * @property {string[]} strengths - User's key strengths
+ * @property {string[]} gaps - Identified skill gaps
+ * @property {Object} normalization - Parsing details and confidence scores
+ */
 
 const initialFormData = {
   education: '',
@@ -17,14 +49,24 @@ const initialFormData = {
   selectedCareers: ['DevOps Engineer', 'Data Analyst', 'Backend Developer', 'Cloud Engineer'],
 }
 
-
+/**
+ * Homepage component - Main UI for career recommendation engine.
+ * Manages form submission, API calls, loading states, and result display.
+ * 
+ * Race condition handling:
+ * - Each API request gets a unique requestId (timestamp)
+ * - pendingPlan stores {id, data} to validate response belongs to latest request
+ * - handleThinkingComplete only updates state if requestId matches current pending request
+ */
 export default function Homepage() {
   const [formData, setFormData] = useState(initialFormData)
+  /** @type {[CareerPlan | null, Function]} */
   const [careerPlan, setCareerPlan] = useState(null)
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [thinkingDone, setThinkingDone] = useState(false)
-  const pendingPlan = useRef(null)  // hold result until animation finishes
+  /** @type {React.MutableRefObject<{id: number, data: CareerPlan | null} | null>} */
+  const pendingPlan = useRef(null)  // Hold result until animation finishes, with requestId for race condition prevention
 
   const aiSource = careerPlan?.ai_source || 'mock'
   const careerScores = Array.isArray(careerPlan?.career_scores) ? careerPlan.career_scores : []
@@ -52,8 +94,8 @@ export default function Homepage() {
 
   // When API returns, store in ref — actual reveal waits for animation to finish
   function handleThinkingComplete() {
-    if (pendingPlan.current) {
-      setCareerPlan(pendingPlan.current)
+    if (pendingPlan.current?.data) {
+      setCareerPlan(pendingPlan.current.data)
       pendingPlan.current = null
     }
     setThinkingDone(true)
@@ -66,7 +108,9 @@ export default function Homepage() {
     setThinkingDone(false)
     setError('')
     setCareerPlan(null)
-    pendingPlan.current = null
+    
+    const requestId = Date.now()  // Unique ID for this request
+    pendingPlan.current = { id: requestId, data: null }
 
     try {
       const response = await fetch('/api/career', {
@@ -88,13 +132,27 @@ export default function Homepage() {
       if (!response.ok) {
         throw new Error(data?.error || 'Failed to generate a career plan.')
       }
+      
+      // Validate response structure before storing
+      if (!data || typeof data !== 'object') {
+        throw new Error('Invalid response structure from backend')
+      }
+      
+      if (!Array.isArray(data.career_scores) || data.career_scores.length === 0) {
+        throw new Error('No career scores in response')
+      }
 
-      // Store result — don't show yet, wait for thinking animation to complete
-      pendingPlan.current = data
+      // Store result only if this is still the latest request
+      if (requestId === pendingPlan.current?.id) {
+        pendingPlan.current = { id: requestId, data }
+      }
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : 'Something went wrong.')
-      setIsLoading(false)
-      setThinkingDone(true)
+      // Update UI error only if this is still the latest request
+      if (requestId === pendingPlan.current?.id) {
+        setError(requestError instanceof Error ? requestError.message : 'Something went wrong.')
+        setIsLoading(false)
+        setThinkingDone(true)
+      }
     }
   }
 
@@ -198,7 +256,10 @@ export default function Homepage() {
                   />
                 </div>
 
-                <CareerComparisonTable comparison={comparison} bestCareer={topCareer} className="xl:col-span-3" />
+                <ComparisonCards careers={comparison} className="xl:col-span-3" />
+
+                {/* Pipeline Visualization */}
+                <PipelineVisualization className="xl:col-span-3" />
 
                 <ResultCard
                   eyebrow="Signal"

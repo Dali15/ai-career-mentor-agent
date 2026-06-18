@@ -1,5 +1,6 @@
 Flask==3.0.3
 flask-cors==4.0.1
+flask-limiter>=4.1.1
 python-dotenv==1.0.1
 groq==1.4.0
 openai==1.63.0

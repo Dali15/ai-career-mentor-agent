@@ -1,4 +1,61 @@
 from typing import Dict, Any, List
+import logging
+
+logger = logging.getLogger(__name__)
+
+def generate_explanation(user_vector: Dict[str, float], career_vector: Dict[str, float], career_name: str) -> Dict[str, Any]:
+    """
+    Wrapper function for backward compatibility with scoring_engine.py
+    Extracts top positive factors, supporting factors, and missing critical skills.
+    """
+    contributions = []
+    from .career_profiles import DIMENSIONS, DIMENSION_WEIGHTS
+    
+    for dim in DIMENSIONS:
+        weight = DIMENSION_WEIGHTS.get(dim, 1.0)
+        u_val = user_vector.get(dim, 0.0)
+        c_val = career_vector.get(dim, 0.0)
+        contrib = u_val * c_val * weight
+        contributions.append((dim, contrib, u_val, c_val))
+    
+    contributions.sort(key=lambda x: x[1], reverse=True)
+    
+    # Top Positive Factors
+    top_positive = [item[0] for item in contributions if item[1] > 0][:2]
+    
+    # Supporting Factors
+    supporting = [item[0] for item in contributions if item[1] > 0][2:4]
+    
+    # Missing Critical Skills
+    missing_critical = [item[0] for item in contributions if item[3] > 0.7 and item[2] < 0.3]
+    
+    # Reasoning Summary
+    direct_signals = sum(1 for dim, contrib, u_val, c_val in contributions if contrib >= 0.12 or (u_val >= 0.35 and c_val >= 0.35))
+    if not top_positive:
+        reasoning_summary = f"No strong vector alignments found for {career_name}."
+    else:
+        top_str = " and ".join(top_positive)
+        if direct_signals >= 4:
+            reasoning_summary = f"Deep experience in {top_str} indicates strong suitability for {career_name} roles."
+        else:
+            reasoning_summary = f"Strong alignment in {top_str} indicates suitability for {career_name} roles."
+        
+        if supporting:
+            sup_str = " and ".join(supporting)
+            reasoning_summary += f" Additional support from {sup_str} strengthens capability."
+            
+        if missing_critical:
+            gap_str = " and ".join(missing_critical[:2])
+            reasoning_summary += f" However, limited presence in {gap_str} reduces full readiness."
+            
+        reasoning_summary += f" Overall, this profile fits an early-stage {career_name} trajectory."
+    
+    return {
+        "top_positive_factors": top_positive,
+        "supporting_factors": supporting,
+        "missing_critical_skills": missing_critical,
+        "reasoning_summary": reasoning_summary
+    }
 
 class ExplanationEngine:
     """
@@ -6,6 +63,15 @@ class ExplanationEngine:
     Interprets scoring data and returns structured, human-readable explanations.
     Does NOT calculate or modify scores.
     """
+    
+    @staticmethod
+    def _sanitize_text(text: str, max_length: int = 100) -> str:
+        """Sanitize text for safe inclusion in JSON responses."""
+        if not isinstance(text, str):
+            return ""
+        # Remove control characters and limit length
+        clean = ''.join(c for c in text if ord(c) >= 32 or c in '\n\t')[:max_length]
+        return clean.strip()
     
     @staticmethod
     def generate_explanation(input_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -35,7 +101,7 @@ class ExplanationEngine:
     @staticmethod
     def _build_reasoning_steps(user_vector: Dict[str, float], top_career: str, career_scores: List[Dict[str, Any]]) -> List[str]:
         # Step 1: Profile Interpretation
-        active_dims = [dim for dim, val in user_vector.items() if val > 0]
+        active_dims = [ExplanationEngine._sanitize_text(dim) for dim, val in user_vector.items() if val > 0]
         if active_dims:
             step1 = f"Profile interpretation: Analyzed user signals across {len(active_dims)} technical dimensions."
         else:
@@ -43,25 +109,27 @@ class ExplanationEngine:
             
         # Step 2: Strongest skill clusters
         sorted_dims = sorted(user_vector.items(), key=lambda x: x[1], reverse=True)
-        strong_dims = [d[0] for d in sorted_dims if d[1] >= 0.3]
+        strong_dims = [ExplanationEngine._sanitize_text(d[0]) for d in sorted_dims if d[1] >= 0.3]
         if strong_dims:
-            step2 = f"Strongest skill clusters: Identified primary capabilities in {', '.join(strong_dims[:3])}."
+            safe_dims = ', '.join(strong_dims[:3])
+            step2 = f"Strongest skill clusters: Identified primary capabilities in {safe_dims}."
         else:
             step2 = "Strongest skill clusters: Skills are distributed or foundational, without a dominating technical cluster."
             
         # Step 3: Weakest areas
         top_career_data = next((c for c in career_scores if c["career"] == top_career), None)
         if top_career_data and top_career_data.get("missing_critical_skills"):
-            gaps = top_career_data["missing_critical_skills"]
-            step3 = f"Weakest areas: Identified critical gaps in {', '.join(gaps[:2])}."
+            gaps = [ExplanationEngine._sanitize_text(g) for g in top_career_data["missing_critical_skills"][:2]]
+            step3 = f"Weakest areas: Identified critical gaps in {', '.join(gaps)}."
         else:
             step3 = "Weakest areas: No immediate critical gaps detected for the targeted trajectory."
             
         # Step 4: Why top career was selected
+        safe_career = ExplanationEngine._sanitize_text(top_career)
         if top_career_data and top_career_data.get("score", 0) >= 10:
-            step4 = f"Career selection: {top_career} was selected due to highest vector alignment and overlap with user strengths."
+            step4 = f"Career selection: {safe_career} was selected due to highest vector alignment and overlap with user strengths."
         else:
-            step4 = f"Career selection: Defaulted to foundational {top_career} trajectory due to low overall alignment scores."
+            step4 = f"Career selection: Defaulted to foundational {safe_career} trajectory due to low overall alignment scores."
             
         return [step1, step2, step3, step4]
 
@@ -69,9 +137,9 @@ class ExplanationEngine:
     def _build_career_specific(career_scores: List[Dict[str, Any]]) -> Dict[str, str]:
         explanations = {}
         for cs in career_scores:
-            career_name = cs.get("career", "Unknown")
-            top_factors = cs.get("top_positive_factors", [])
-            supporting = cs.get("supporting_factors", [])
+            career_name = ExplanationEngine._sanitize_text(cs.get("career", "Unknown"))
+            top_factors = [ExplanationEngine._sanitize_text(f) for f in cs.get("top_positive_factors", [])]
+            supporting = [ExplanationEngine._sanitize_text(f) for f in cs.get("supporting_factors", [])]
             
             if not top_factors:
                 msg = f"{career_name}: Low alignment detected across required technical dimensions."
@@ -88,13 +156,14 @@ class ExplanationEngine:
 
     @staticmethod
     def _build_final_explanation(top_career: str, career_scores: List[Dict[str, Any]]) -> str:
+        safe_career = ExplanationEngine._sanitize_text(top_career)
         top_career_data = next((c for c in career_scores if c["career"] == top_career), None)
         score = top_career_data.get("score", 0) if top_career_data else 0
         
         if score < 10:
             return (
                 f"The provided profile lacks specific technical signals to strongly recommend a specialized path. "
-                f"A foundational approach towards {top_career} is recommended to build core competencies."
+                f"A foundational approach towards {safe_career} is recommended to build core competencies."
             )
         
         if score < 50:
@@ -145,7 +214,7 @@ class ExplanationEngine:
         top_score  = top_data.get("score", 0) if top_data else 0
         others     = [c for c in career_scores if c["career"] != top_career]
 
-        summary          = ExplanationEngine._build_trace_summary(top_career, top_score, top_data)
+        summary          = ExplanationEngine._build_trace_summary(top_career, top_score, top_data, user_vector)
         why_won          = ExplanationEngine._build_why_won(top_career, top_score, top_data)
         why_others_lost  = ExplanationEngine._build_why_others_lost(others, top_score)
         key_drivers      = ExplanationEngine._build_key_drivers(top_data, user_vector)
@@ -158,7 +227,7 @@ class ExplanationEngine:
         }
 
     @staticmethod
-    def _build_trace_summary(top_career: str, score: int, top_data: Any) -> str:
+    def _build_trace_summary(top_career: str, score: int, top_data: Any, user_vector: Dict[str, float] | None = None) -> str:
         if score < 10:
             return (
                 "The profile doesn't yet show strong signals for any specific career path. "
@@ -179,10 +248,21 @@ class ExplanationEngine:
                 "A few targeted improvements would push this into a highly competitive position."
             )
         top_factors = (top_data or {}).get("top_positive_factors", [])
+        supporting = (top_data or {}).get("supporting_factors", [])
         strengths_str = " and ".join(ExplanationEngine._label(f) for f in top_factors[:2]) if top_factors else "core skills"
+        direct_signals = sum(
+            1
+            for dim in set(top_factors + supporting)
+            if (user_vector or {}).get(dim, 0.0) >= 0.35
+        )
+        if direct_signals >= 4:
+            return (
+                f"This profile is a strong match for {top_career}. "
+                f"Deep experience in {strengths_str} directly maps to what employers in this role look for."
+            )
         return (
             f"This profile is a strong match for {top_career}. "
-            f"Deep experience in {strengths_str} directly maps to what employers in this role look for."
+            f"These strengths map well to the core requirements of this role."
         )
 
     @staticmethod

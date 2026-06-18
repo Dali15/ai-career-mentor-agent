@@ -1,5 +1,18 @@
 import SectionHeader from './SectionHeader'
 
+/**
+ * ResultCard - Reusable card component for displaying analysis results.
+ * Used for career matches, roadmaps, and other analysis sections.
+ * 
+ * @param {Object} props
+ * @param {string} props.title - Main card title
+ * @param {string} [props.eyebrow='Analysis'] - Small label above title
+ * @param {string} [props.description] - Subtitle or description
+ * @param {string} [props.accent] - Color accent for visual styling
+ * @param {string} [props.className=''] - Additional CSS classes
+ * @param {React.ReactNode} props.children - Card content
+ * @returns {React.JSX.Element}
+ */
 export default function ResultCard({ title, eyebrow = 'Analysis', description, accent, className = '', children }) {
   return (
     <article className={`group relative overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/[0.05] p-6 shadow-[0_24px_80px_rgba(15,23,42,0.22)] transition-all duration-300 hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.07] animate-fade-up ${className}`}>

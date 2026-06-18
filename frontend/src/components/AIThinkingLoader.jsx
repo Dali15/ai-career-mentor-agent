@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 
 const PIPELINE_STEPS = [
-  { label: 'Analyzing profile',        icon: '🔍', color: 'from-cyan-400 to-sky-500',     delay: 0   },
-  { label: 'Extracting skill vectors',  icon: '🧬', color: 'from-sky-400 to-indigo-500',   delay: 600 },
-  { label: 'Computing vector space',    icon: '📐', color: 'from-indigo-400 to-violet-500', delay: 1200 },
-  { label: 'Scoring careers',           icon: '⚡', color: 'from-violet-400 to-fuchsia-500', delay: 1900 },
-  { label: 'Generating explanation',    icon: '✨', color: 'from-fuchsia-400 to-rose-400',  delay: 2600 },
+  { label: 'Intent Detection',        icon: '🎯', color: 'from-blue-400 to-cyan-500',     delay: 0   },
+  { label: 'Skill Extraction',  icon: '🔍', color: 'from-cyan-400 to-teal-500',   delay: 600 },
+  { label: 'Vector Construction',    icon: '📊', color: 'from-teal-400 to-indigo-500', delay: 1200 },
+  { label: 'Similarity Scoring',           icon: '↔️', color: 'from-indigo-400 to-purple-500', delay: 1900 },
+  { label: 'Coverage Validation',    icon: '✓', color: 'from-purple-400 to-pink-500',  delay: 2600 },
+  { label: 'Alignment Calculation',    icon: '⭐', color: 'from-pink-400 to-rose-500',  delay: 3200 },
+  { label: 'Explanation Generation',    icon: '💭', color: 'from-rose-400 to-orange-400',  delay: 3800 },
+  { label: 'Generating Recommendation',    icon: '✨', color: 'from-orange-400 to-amber-400',  delay: 4400 },
 ]
 
-const STEP_DURATION = 650  // ms each step stays "active" before locking as done
+const STEP_DURATION = 700  // ms each step stays "active" before locking as done
 
 /**
  * AIThinkingLoader

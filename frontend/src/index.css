@@ -164,4 +164,59 @@
   .step-slide       { animation: step-slide-in 380ms cubic-bezier(0.22,1,0.36,1) both; }
   .scanner-bar      { animation: scanner 1.6s ease-in-out infinite; }
   .check-pop        { animation: check-pop 360ms cubic-bezier(0.34,1.56,0.64,1) both; }
+
+  /* ── Enhanced UI Animations ────────────────────────────────────── */
+  @keyframes slide-up {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes slide-in-left {
+    from {
+      opacity: 0;
+      transform: translateX(-20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes pulse-subtle {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.8; }
+  }
+
+  @keyframes glow-pulse {
+    0%, 100% { 
+      box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.3),
+                  inset 0 0 20px rgba(37, 99, 235, 0.1);
+    }
+    50% { 
+      box-shadow: 0 0 0 8px rgba(37, 99, 235, 0),
+                  inset 0 0 40px rgba(37, 99, 235, 0.2);
+    }
+  }
+
+  .animate-slide-up {
+    animation: slide-up 600ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+
+  .animate-slide-in-left {
+    animation: slide-in-left 500ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+
+  .animate-pulse-subtle {
+    animation: pulse-subtle 2s ease-in-out infinite;
+  }
+
+  .animate-glow-pulse {
+    animation: glow-pulse 2.5s ease-in-out infinite;
+  }
 }

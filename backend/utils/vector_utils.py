@@ -2,7 +2,7 @@ import math
 from typing import Dict, List, Tuple
 import re
 
-from .career_profiles import DIMENSIONS, DIMENSION_WEIGHTS, SKILL_VECTORS, INTEREST_BOOSTS
+from ..models.career_profiles import DIMENSIONS, DIMENSION_WEIGHTS, SKILL_VECTORS, INTEREST_BOOSTS
 
 def calculate_cosine_similarity(user_vector: Dict[str, float], career_vector: Dict[str, float]) -> float:
     dot_product = 0.0

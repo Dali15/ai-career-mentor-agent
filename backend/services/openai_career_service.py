@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from typing import Any
 
 from openai import OpenAI
 
 from .mock_career_service import MockCareerService
+
+logger = logging.getLogger(__name__)
 
 
 class OpenAIService(MockCareerService):
@@ -22,6 +25,9 @@ class OpenAIService(MockCareerService):
             return fallback_response
 
         try:
+            # Sanitize user data for LLM prompt injection prevention
+            sanitized_user_data = self._sanitize_for_llm(user_data)
+            
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
@@ -37,7 +43,7 @@ class OpenAIService(MockCareerService):
                         "role": "user",
                         "content": json.dumps(
                             {
-                                "user_data": user_data,
+                                "user_data": sanitized_user_data,
                                 "structured_analysis": profile_analysis,
                                 "locked_fields": {
                                     "top_career": profile_analysis.get("top_career"),
@@ -58,12 +64,37 @@ class OpenAIService(MockCareerService):
             )
 
             raw_text = self._extract_output_text(response)
-            parsed = json.loads(raw_text)
+            if not raw_text:
+                logger.warning("OpenAI returned empty response text")
+                return fallback_response
+            
+            try:
+                parsed = json.loads(raw_text)
+            except json.JSONDecodeError as e:
+                logger.warning(f"OpenAI returned invalid JSON: {e}. Falling back to mock response.")
+                return fallback_response
+            
             normalized = self._normalize_response(parsed, fallback_response)
             normalized["ai_source"] = "openai"
             return normalized
-        except Exception:
+        except Exception as e:
+            logger.warning(f"OpenAI service error: {e}. Falling back to mock response.")
             return fallback_response
+
+    @staticmethod
+    def _sanitize_for_llm(user_data: dict[str, Any]) -> dict[str, Any]:
+        """Sanitize user data to prevent prompt injection."""
+        sanitized = {}
+        for key, value in user_data.items():
+            if isinstance(value, str):
+                # Remove null bytes and control characters, limit length
+                clean = ''.join(c for c in value if ord(c) >= 32 or c in '\n\t')[:5000]
+                sanitized[key] = clean
+            elif isinstance(value, list):
+                sanitized[key] = [str(item)[:1000] for item in value if item]
+            else:
+                sanitized[key] = value
+        return sanitized
 
     @staticmethod
     def _build_client() -> Any | None:
@@ -74,23 +105,21 @@ class OpenAIService(MockCareerService):
 
     @staticmethod
     def _extract_output_text(response: Any) -> str:
-        message = None
-        choices = getattr(response, "choices", None) or []
-        if choices:
-            message = getattr(choices[0], "message", None)
-            content = getattr(message, "content", None)
-            if content:
-                return str(content).strip()
+        """Extract text from OpenAI response with validation."""
+        try:
+            message = None
+            choices = getattr(response, "choices", None) or []
+            if choices:
+                message = getattr(choices[0], "message", None)
+                content = getattr(message, "content", None)
+                if content:
+                    return str(content).strip()
 
-        output = getattr(response, "output", None) or []
-        parts: list[str] = []
-        for item in output:
-            content = getattr(item, "content", None) or []
-            for part in content:
-                text = getattr(part, "text", None)
-                if text:
-                    parts.append(text)
-        return "".join(parts).strip()
+            logger.debug("Failed to extract content from OpenAI response structure")
+            return ""
+        except (AttributeError, IndexError, ValueError) as e:
+            logger.warning(f"Error extracting response text: {e}")
+            return ""
 
     @staticmethod
     def _ensure_string_list(value: Any, fallback: list[str]) -> list[str]:

@@ -21,6 +21,8 @@ from __future__ import annotations
 import re
 from typing import Dict, List, Any
 
+from .career_profiles import SKILL_VECTORS
+
 # ─────────────────────────────────────────────────────────────────────────────
 # 1. NOISE WORDS — stripped before any processing
 # ─────────────────────────────────────────────────────────────────────────────
@@ -248,8 +250,31 @@ CONFIDENCE_WEIGHTS: Dict[str, float] = {
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _tokenize(text: str) -> List[str]:
-    """Split on common separators, return lowercase stripped tokens."""
-    return [t.strip() for t in re.split(r"[,;/|\n]+", text.lower()) if t.strip()]
+    """Split into canonical skill phrases, preserving multi-word terms."""
+    chunks = [t.strip().lower() for t in re.split(r"[,;/|\n]+", text) if t.strip()]
+    tokens: List[str] = []
+
+    known_phrases = sorted(set(SYNONYM_MAP) | set(SKILL_VECTORS), key=len, reverse=True)
+
+    for chunk in chunks:
+        words = chunk.split()
+        i = 0
+        while i < len(words):
+            matched = None
+            for phrase in known_phrases:
+                phrase_words = phrase.split()
+                if words[i:i + len(phrase_words)] == phrase_words:
+                    matched = phrase
+                    break
+
+            if matched:
+                tokens.append(matched)
+                i += len(matched.split())
+            else:
+                tokens.append(words[i])
+                i += 1
+
+    return [t for t in tokens if t.strip()]
 
 
 def _remove_noise(tokens: List[str]) -> List[str]:
@@ -368,6 +393,12 @@ def normalize_user_profile(
         "normalized_interests_text": str, # comma-joined, ready for interest boost
     }
     """
+    # ── Input validation: Enforce maximum field lengths ──────────────────
+    MAX_FIELD_LENGTH = 5000
+    education = str(education)[:MAX_FIELD_LENGTH].strip()
+    skills = str(skills)[:MAX_FIELD_LENGTH].strip()
+    interests = str(interests)[:MAX_FIELD_LENGTH].strip()
+    
     # ── 1. Education hints → extra skill signals ──────────────────────────
     edu_lower = education.lower()
     edu_skills: List[str] = []

@@ -4,6 +4,8 @@ A **production-grade recommendation engine** that transforms raw skills into per
 
 > Stop guessing. Start building. Your next career move deserves clarity, not luck.
 
+![Project Homepage](assets/screenshots/homepage.jpg)
+
 ---
 
 ## ✨ Key Features

@@ -1,3 +1,0 @@
-Place the third screenshot image here as 'screenshot-3.png'.
-
-This should be the image showing the learning roadmap and decision trace (provided by the user). Replace this placeholder with the binary PNG file.

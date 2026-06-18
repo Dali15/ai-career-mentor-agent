@@ -453,4 +453,3 @@ Below are three UI screenshots demonstrating the polished frontend. Copy the ima
 
 ![Learning Roadmap and Decision Trace](assets/screenshots/screenshot-3.png)
 
-_If the images are not visible, place the three PNG files in `assets/screenshots/` with the exact filenames above._

@@ -22,6 +22,7 @@ import re
 from typing import Dict, List, Any
 
 from .career_profiles import SKILL_VECTORS
+from .domain_classifier import classify_domains
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 1. NOISE WORDS — stripped before any processing
@@ -463,6 +464,7 @@ def normalize_user_profile(
         "clean_skills":              clean_skills,
         "clean_interests":           clean_interests,
         "detected_intents":          detected_intents,
+        "domains":                   classify_domains(clean_skills, detected_intents, interests),
         "confidence_map":            confidence_map,
         "normalized_skills_text":    normalized_skills_text,
         "normalized_interests_text": normalized_interests_text,

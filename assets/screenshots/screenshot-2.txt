@@ -1,0 +1,3 @@
+Place the second screenshot image here as 'screenshot-2.png'.
+
+This should be the image showing the match score and comparison cards (provided by the user). Replace this placeholder with the binary PNG file.

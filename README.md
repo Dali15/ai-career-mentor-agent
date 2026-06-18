@@ -432,3 +432,23 @@ Contributions welcome! Focus areas:
 **Built with ❤️ for career changers and developers who value clarity over buzzwords.**
 
 *Last updated: June 2026 • Version 1.1 • All tests passing* ✅
+
+---
+
+## 📸 UI Screenshots
+
+Below are three UI screenshots demonstrating the polished frontend. Copy the image files into `assets/screenshots/` using the filenames shown.
+
+**Screenshot 1 — Hero & AI Pipeline**
+
+![Hero and AI Pipeline](assets/screenshots/screenshot-1.png)
+
+**Screenshot 2 — Match Score & Comparison Cards**
+
+![Match Score and Comparison Cards](assets/screenshots/screenshot-2.png)
+
+**Screenshot 3 — Learning Roadmap & Decision Trace**
+
+![Learning Roadmap and Decision Trace](assets/screenshots/screenshot-3.png)
+
+_If the images are not visible, place the three PNG files in `assets/screenshots/` with the exact filenames above._
